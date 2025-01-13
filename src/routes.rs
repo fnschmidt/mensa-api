@@ -26,13 +26,13 @@ pub async fn app(today_updated_tx: broadcast::Sender<CanteenMealDiff>) -> Router
             get(move |ws| services::ws_handler_today_upd_diff(ws, today_updated_diff_tx)),
         )
         .route("/canteens", get(services::get_canteens))
-        .route("/canteens/:canteen_id", get(services::get_canteen_meta))
+        .route("/canteens/{canteen_id}", get(services::get_canteen_meta))
         .route(
-            "/canteens/:canteen_id/days",
+            "/canteens/{canteen_id}/days",
             get(services::get_canteen_available_days),
         )
         .route(
-            "/canteens/:canteen_id/days/:date",
+            "/canteens/{canteen_id}/days/{date}",
             get(services::get_meals_of_day),
         )
         .route(
