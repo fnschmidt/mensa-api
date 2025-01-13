@@ -50,7 +50,7 @@ pub async fn websocket_today_upd(
             msg.canteen_id.to_string()
         };
         if socket
-            .send(axum::extract::ws::Message::Text(msg))
+            .send(axum::extract::ws::Message::Text(msg.into()))
             .await
             .is_err()
         {
