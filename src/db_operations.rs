@@ -1,6 +1,6 @@
 use anyhow::Result;
 use chrono::NaiveDate;
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use std::collections::BTreeMap;
 
 use crate::{stuwe_request_funcs::build_date_string, types::MealGroup};

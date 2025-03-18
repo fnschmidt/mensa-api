@@ -1,5 +1,5 @@
-use axum::{response::IntoResponse, routing::get, Router};
-use http::{header::CONTENT_TYPE, Method};
+use axum::{Router, response::IntoResponse, routing::get};
+use http::{Method, header::CONTENT_TYPE};
 use tokio::sync::broadcast;
 use tower_http::cors::{Any, CorsLayer};
 

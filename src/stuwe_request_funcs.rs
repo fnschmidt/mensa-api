@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use chrono::{Datelike, NaiveDate};
 use lazy_static::lazy_static;
 use scraper::{Element, ElementRef, Html, Selector};

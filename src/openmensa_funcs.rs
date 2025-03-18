@@ -5,7 +5,7 @@ use axum::Json;
 use http::StatusCode;
 use reqwest::Client;
 use reqwest_middleware::ClientBuilder;
-use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
+use reqwest_retry::{RetryTransientMiddleware, policies::ExponentialBackoff};
 use serde::Deserialize;
 
 use crate::{

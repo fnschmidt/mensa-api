@@ -1,5 +1,6 @@
 use anyhow::Result;
 use chrono::{DateTime, Datelike, Duration, FixedOffset, NaiveDate, Weekday};
+use std::sync::{Arc, RwLock};
 use tokio::{sync::broadcast, task::JoinSet};
 use tokio_cron_scheduler::{Job, JobScheduler};
 
@@ -9,22 +10,31 @@ use crate::{
     types::CanteenMealDiff,
 };
 
-pub async fn start_canteen_cache_job(today_updated_tx: broadcast::Sender<CanteenMealDiff>) {
+pub async fn start_canteen_cache_job(
+    today_updated_tx: broadcast::Sender<CanteenMealDiff>,
+    update_task_running: Arc<RwLock<bool>>,
+) -> JobScheduler {
     let sched = JobScheduler::new().await.unwrap();
 
     let cache_job = Job::new_async("0 0/5 * * * *", move |_uuid, mut _l| {
         let today_updated_tx = today_updated_tx.clone(); // clone for async move
+        let update_task_running = update_task_running.clone();
+
         Box::pin(async move {
             log::info!("Updating Canteens");
 
             if let Err(e) = update_cache(Some(today_updated_tx)).await {
                 println!("Failed to update cache: {}", e);
             }
+            *update_task_running.write().unwrap() = false;
         })
     })
     .unwrap();
+
     sched.add(cache_job).await.unwrap();
     sched.start().await.unwrap();
+
+    sched
 }
 
 pub async fn update_cache(
