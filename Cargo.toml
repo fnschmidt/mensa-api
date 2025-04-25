@@ -1,12 +1,12 @@
 [package]
 name = "mensa-api"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1.39.2", features = ["macros", "rt-multi-thread", "signal"] }
+tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread", "signal"] }
 serde = { version = "1.0.204", features = ["derive"] }
 chrono = { version = "0.4.38", features = ["serde"] }
 axum = { version = "0.8.1", features = ["ws"] }
@@ -16,7 +16,7 @@ reqwest = { version = "0.12.5", features = ["json", "rustls-tls"], default-featu
 anyhow = "1.0.86"
 tower-http = { version = "0.6.1", features = ["cors"] }
 http = "1.1.0"
-rusqlite = "0.34"
+rusqlite = "0.35.0"
 tokio-cron-scheduler = "0.13.0"
 pretty_env_logger = "0.5.0"
 log = "0.4.22"
