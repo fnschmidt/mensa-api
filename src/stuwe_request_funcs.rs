@@ -108,15 +108,11 @@ pub fn diff_canteen_meals(
                 .meal_groups
                 .iter()
                 .find(|old_group| old_group.meal_type == new_mealgroup.meal_type);
-            if equiv_old_mealgroups.is_none() {
-                // new category → all submeals are new
-                new_meals.push(new_mealgroup.clone());
-            } else {
+            if let Some(equiv_old_mealgroups) = equiv_old_mealgroups {
                 // find new submeals
                 let new_or_changed_submeals =
                     new_mealgroup.sub_meals.iter().filter(|new_submeal| {
                         equiv_old_mealgroups
-                            .unwrap()
                             .sub_meals
                             .iter()
                             .all(|old_submeal| (old_submeal != *new_submeal))
@@ -124,23 +120,18 @@ pub fn diff_canteen_meals(
 
                 let new_or_changed_ignoring_allergens =
                     new_mealgroup.sub_meals.iter().filter(|new_submeal| {
-                        equiv_old_mealgroups
-                            .unwrap()
-                            .sub_meals
-                            .iter()
-                            .all(|old_submeal| {
-                                old_submeal.name != *new_submeal.name
-                                    || old_submeal.additional_ingredients
-                                        != *new_submeal.additional_ingredients
-                                    || old_submeal.variations != new_submeal.variations
-                                    || old_submeal.price != *new_submeal.price
-                            })
+                        equiv_old_mealgroups.sub_meals.iter().all(|old_submeal| {
+                            old_submeal.name != *new_submeal.name
+                                || old_submeal.additional_ingredients
+                                    != *new_submeal.additional_ingredients
+                                || old_submeal.variations != new_submeal.variations
+                                || old_submeal.price != *new_submeal.price
+                        })
                     });
 
                 let (changed_submeals, new_submeals): (Vec<_>, Vec<_>) = new_or_changed_submeals
                     .partition(|meal| {
                         equiv_old_mealgroups
-                            .unwrap()
                             .sub_meals
                             .iter()
                             .any(|old_submeal| old_submeal.name == meal.name)
@@ -149,7 +140,6 @@ pub fn diff_canteen_meals(
                 let changed_submeals_ignoring_allergens = new_or_changed_ignoring_allergens
                     .filter(|meal| {
                         equiv_old_mealgroups
-                            .unwrap()
                             .sub_meals
                             .iter()
                             .any(|old_submeal| old_submeal.name == meal.name)
@@ -182,7 +172,6 @@ pub fn diff_canteen_meals(
 
                 // find removed submeals if the category already exists in old data
                 let removed_submeals: Vec<_> = equiv_old_mealgroups
-                    .unwrap()
                     .sub_meals
                     .iter()
                     .filter(|old_submeal| {
@@ -200,6 +189,9 @@ pub fn diff_canteen_meals(
                         sub_meals: removed_submeals,
                     });
                 }
+            } else {
+                // new category → all submeals are new
+                new_meals.push(new_mealgroup.clone());
             }
         }
 
@@ -270,7 +262,7 @@ async fn extract_data_from_html(html_text: &str) -> Result<Vec<CanteenMealsDay>>
     lazy_static! {
         static ref DATE_BUTTON_GROUPSEL: Selector =
             Selector::parse(r#"button.date-button.is--active"#).unwrap();
-        static ref TITLE_SEL: Selector = Selector::parse("h3").unwrap();
+        static ref H4_SEL: Selector = Selector::parse(".cell>h2").unwrap();
     };
 
     document
@@ -278,14 +270,15 @@ async fn extract_data_from_html(html_text: &str) -> Result<Vec<CanteenMealsDay>>
         .next()
         .context("Recv. StuWe site is invalid (has no date)")?;
 
-    let title_elements = document.select(&TITLE_SEL);
+    let title_elements = document.select(&H4_SEL);
 
     for canteen_name_el in title_elements {
         let canteen_name = canteen_name_el.inner_html();
         let meals = extract_mealgroup_from_htmlcontainer(
             canteen_name_el
                 .next_sibling_element()
-                .context("h3 without meal container")?,
+                .and_then(|el| el.next_sibling_element())
+                .context("h2 without meal container")?,
         )?;
 
         let canteen_map_inv_r = CANTEEN_MAP_INV.read().unwrap();
@@ -323,20 +316,22 @@ fn extract_mealgroup_from_htmlcontainer(meal_container: ElementRef<'_>) -> Resul
     let mut v_meal_groups: Vec<MealGroup> = Vec::new();
 
     lazy_static! {
-        static ref MEAL_SEL: Selector = Selector::parse(r#"div.type--meal"#).unwrap();
-        static ref MEAL_TYPE_SEL: Selector = Selector::parse(r#"div.meal-tags>.tag"#).unwrap();
-        static ref TITLE_SEL: Selector = Selector::parse(r#"h4"#).unwrap();
-        static ref ADDITIONAL_INGREDIENTS_SEL: Selector =
-            Selector::parse(r#"div.meal-components"#).unwrap();
-        static ref PRICE_SEL: Selector = Selector::parse(r#"div.meal-prices>span"#).unwrap();
-        static ref ALLERGENS_SEL: Selector = Selector::parse(r#"div.meal-allergens>p"#).unwrap();
-        static ref VARIATIONS_SEL: Selector = Selector::parse(r#"div.meal-subitems"#).unwrap();
-        static ref H5_SELECTOR: Selector = Selector::parse("h5").unwrap();
-        static ref P_SELECTOR: Selector = Selector::parse("p").unwrap();
+        static ref DIV_SEL: Selector = Selector::parse("div").unwrap();
+        static ref SPAN_SEL: Selector = Selector::parse("span").unwrap();
+        static ref BUTTON_SEL: Selector = Selector::parse("button").unwrap();
+        static ref H4_SEL: Selector = Selector::parse(r#"h4"#).unwrap();
+        static ref H5_SEL: Selector = Selector::parse("h5").unwrap();
+        static ref P_SEL: Selector = Selector::parse("p").unwrap();
+        static ref MEAL_TYPE_SEL: Selector = Selector::parse("div>span").unwrap();
+        static ref PRICE_SEL: Selector = Selector::parse("div>i").unwrap();
+        static ref ALLERGENS_SEL: Selector = Selector::parse(r#"div>p"#).unwrap();
+        static ref VARIATIONS_SEL: Selector = Selector::parse("div>h5").unwrap();
     };
 
-    // quick && dirty
-    for meal_element in meal_container.select(&MEAL_SEL) {
+    for meal_element in meal_container
+        .child_elements()
+        .filter(|el| el.attr("style").is_none() && !el.inner_html().contains("Keine Gerichte"))
+    {
         let meal_type = meal_element
             .select(&MEAL_TYPE_SEL)
             .next()
@@ -344,62 +339,82 @@ fn extract_mealgroup_from_htmlcontainer(meal_container: ElementRef<'_>) -> Resul
             .inner_html();
 
         let title = meal_element
-            .select(&TITLE_SEL)
+            .select(&H4_SEL)
             .next()
             .context("meal title element not found")?
             .inner_html()
             .replace("&nbsp;", " ")
             .replace("&amp;", "&");
 
-        let additional_ingredients =
-            if let Some(item) = meal_element.select(&ADDITIONAL_INGREDIENTS_SEL).next() {
-                let text = item.inner_html();
-                // for whatever reason there might be, sometimes this element exists without any content
-                if !text.is_empty() {
-                    let mut add_ingr_dedup: Vec<String> = vec![];
-                    let inner_html = item.inner_html();
-                    let iter = inner_html.split('·').map(|slice| slice.trim().to_string());
-                    for ingr in iter {
-                        let clean = ingr.replace("&nbsp;", " ").replace("&amp; ", "");
-                        let clean = clean
-                            .strip_prefix("/")
-                            .map(|s| s.to_string())
-                            .unwrap_or(clean);
-                        if !add_ingr_dedup.contains(&clean) {
-                            add_ingr_dedup.push(clean);
-                        }
+        let additional_ingredients = if let Some(item) = meal_element
+            .select(&DIV_SEL)
+            .find(|d| d.child_elements().next().is_none())
+        {
+            let text = item.inner_html();
+            // for whatever reason there might be, sometimes this element exists without any content
+            if !text.is_empty() {
+                let mut add_ingr_dedup: Vec<String> = vec![];
+                let inner_html = item.inner_html();
+                let iter = inner_html.split('·').map(|slice| slice.trim().to_string());
+                for ingr in iter {
+                    let clean = ingr.replace("&nbsp;", " ").replace("&amp; ", "");
+                    let clean = clean
+                        .strip_prefix("/")
+                        .map(|s| s.to_string())
+                        .unwrap_or(clean);
+                    if !add_ingr_dedup.contains(&clean) {
+                        add_ingr_dedup.push(clean);
                     }
-
-                    add_ingr_dedup
-                } else {
-                    // in that case, return empty vec (otherwise it would be a vec with one empty string in it)
-                    vec![]
                 }
-                // Sosumi
+
+                add_ingr_dedup
             } else {
+                // in that case, return empty vec (otherwise it would be a vec with one empty string in it)
                 vec![]
-            };
+            }
+            // Sosumi
+        } else {
+            vec![]
+        };
 
         let mut price = String::new();
-        meal_element.select(&PRICE_SEL).for_each(|price_element| {
-            price += &price_element
-                .inner_html()
-                .replace("&nbsp;", " ")
-                .replace("&amp;", "&");
-        });
-        price = price.trim().to_string();
+        let price_container = meal_element
+            .select(&PRICE_SEL)
+            .next()
+            .and_then(|i| i.parent_element());
+        if let Some(price_container) = price_container {
+            price_container.select(&SPAN_SEL).for_each(|price_element| {
+                price += &price_element
+                    .inner_html()
+                    .replace("&nbsp;", " ")
+                    .replace("&amp;", "&");
+            });
+            price = price.trim().to_string();
+        }
 
         let allergens = meal_element
             .select(&ALLERGENS_SEL)
             .next()
+            .filter(|p| {
+                p.parent_element()
+                    .and_then(|par| par.parent_element())
+                    .and_then(|ppar| ppar.select(&BUTTON_SEL).next())
+                    .is_some_and(|button| button.inner_html().contains("Allergene"))
+            })
             .map(|el| el.inner_html());
 
-        let variations = meal_element.select(&VARIATIONS_SEL).next().map(|el| {
+        let variation_element = meal_element
+            .select(&VARIATIONS_SEL)
+            .next()
+            .and_then(|h5| h5.parent_element())
+            .and_then(|p| p.parent_element());
+
+        let variations = variation_element.map(|v_e| {
             let mut variations_vec: Vec<MealVariation> = vec![];
 
-            for variation in el.child_elements() {
+            for variation in v_e.child_elements() {
                 let name = variation
-                    .select(&H5_SELECTOR)
+                    .select(&H5_SEL)
                     .next()
                     .unwrap()
                     .text()
@@ -409,7 +424,7 @@ fn extract_mealgroup_from_htmlcontainer(meal_container: ElementRef<'_>) -> Resul
                     .to_string();
 
                 let allergens_and_add = variation
-                    .select(&P_SELECTOR)
+                    .select(&P_SEL)
                     .next()
                     .map(|el| el.text().last().unwrap().replace(": ", "").to_string());
 
@@ -475,12 +490,11 @@ fn extract_canteenid(document: &Html, canteen_title: &str) -> Result<u32> {
     let canteen_li = document
         .select(&CANTEEN_LIST_SEL)
         .find(|li| li.first_element_child().unwrap().inner_html() == canteen_title);
-    if let Some(canteen_li) = canteen_li {
-        if let Some(canteen_id) = canteen_li.value().attr("data-location") {
-            if let Ok(canteen_id) = canteen_id.parse::<u32>() {
-                return Ok(canteen_id);
-            }
-        }
+    if let Some(canteen_li) = canteen_li
+        && let Some(canteen_id) = canteen_li.value().attr("data-location")
+        && let Ok(canteen_id) = canteen_id.parse::<u32>()
+    {
+        return Ok(canteen_id);
     }
 
     Err(anyhow!("Failed to extract canteen id"))
