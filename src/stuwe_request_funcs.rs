@@ -377,20 +377,19 @@ fn extract_mealgroup_from_htmlcontainer(meal_container: ElementRef<'_>) -> Resul
             vec![]
         };
 
-        let mut price = String::new();
         let price_container = meal_element
             .select(&PRICE_SEL)
             .next()
             .and_then(|i| i.parent_element());
-        if let Some(price_container) = price_container {
-            price_container.select(&SPAN_SEL).for_each(|price_element| {
-                price += &price_element
-                    .inner_html()
-                    .replace("&nbsp;", " ")
-                    .replace("&amp;", "&");
-            });
-            price = price.trim().to_string();
-        }
+
+        let price = match price_container {
+            Some(price_container) => price_container
+                .select(&SPAN_SEL)
+                .map(|span| span.inner_html().replace("&nbsp;", " "))
+                .collect::<Vec<_>>()
+                .join(" "),
+            None => String::new(),
+        };
 
         let allergens = meal_element
             .select(&ALLERGENS_SEL)
