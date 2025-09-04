@@ -316,15 +316,12 @@ fn extract_mealgroup_from_htmlcontainer(meal_container: ElementRef<'_>) -> Resul
     let mut v_meal_groups: Vec<MealGroup> = Vec::new();
 
     lazy_static! {
-        static ref DIV_SEL: Selector = Selector::parse("div").unwrap();
-        static ref SPAN_SEL: Selector = Selector::parse("span").unwrap();
+        static ref DIV_SEL: Selector = Selector::parse(":scope>div").unwrap();
         static ref BUTTON_SEL: Selector = Selector::parse("button").unwrap();
-        static ref H4_SEL: Selector = Selector::parse(r#"h4"#).unwrap();
+        static ref H4_SEL: Selector = Selector::parse("h4").unwrap();
         static ref H5_SEL: Selector = Selector::parse("h5").unwrap();
-        static ref P_SEL: Selector = Selector::parse("p").unwrap();
-        static ref MEAL_TYPE_SEL: Selector = Selector::parse("div>span").unwrap();
-        static ref PRICE_SEL: Selector = Selector::parse("div>i").unwrap();
-        static ref ALLERGENS_SEL: Selector = Selector::parse(r#"div>p"#).unwrap();
+        static ref MEAL_TYPE_SEL: Selector = Selector::parse(":scope>div>div").unwrap();
+        static ref PRICE_SEL: Selector = Selector::parse(r#"div[title="Studierende"]"#).unwrap();
         static ref VARIATIONS_SEL: Selector = Selector::parse("div>h5").unwrap();
     };
 
@@ -382,31 +379,33 @@ fn extract_mealgroup_from_htmlcontainer(meal_container: ElementRef<'_>) -> Resul
             .next()
             .and_then(|i| i.parent_element());
 
-        let price = match price_container {
-            Some(price_container) => price_container
-                .select(&SPAN_SEL)
-                .map(|span| span.inner_html().replace("&nbsp;", " "))
-                .collect::<Vec<_>>()
-                .join(" "),
-            None => String::new(),
-        };
+        let price = price_container
+            .map(|container| {
+                container
+                    .text()
+                    .map(|s| s.replace('\u{a0}', " "))
+                    .collect::<String>()
+                    .trim()
+                    .to_string()
+            })
+            .unwrap_or_default();
 
         let allergens = meal_element
-            .select(&ALLERGENS_SEL)
-            .next()
-            .filter(|p| {
-                p.parent_element()
-                    .and_then(|par| par.parent_element())
-                    .and_then(|ppar| ppar.select(&BUTTON_SEL).next())
-                    .is_some_and(|button| button.inner_html().contains("Allergene"))
+            .select(&DIV_SEL)
+            .find(|div| {
+                div.select(&BUTTON_SEL)
+                    .next()
+                    .map(|but| but.text().any(|t| t.contains("Allergene")))
+                    .unwrap_or(false)
             })
-            .map(|el| el.inner_html());
+            .and_then(|allergen_parent| allergen_parent.select(&DIV_SEL).next())
+            .map(|allergen_element| allergen_element.inner_html().trim().to_string());
 
         let variation_element = meal_element
             .select(&VARIATIONS_SEL)
             .next()
             .and_then(|h5| h5.parent_element())
-            .and_then(|p| p.parent_element());
+            .and_then(|div| div.parent_element());
 
         let variations = variation_element.map(|v_e| {
             let mut variations_vec: Vec<MealVariation> = vec![];
@@ -423,7 +422,7 @@ fn extract_mealgroup_from_htmlcontainer(meal_container: ElementRef<'_>) -> Resul
                     .to_string();
 
                 let allergens_and_add = variation
-                    .select(&P_SEL)
+                    .select(&DIV_SEL)
                     .next()
                     .map(|el| el.text().last().unwrap().replace(": ", "").to_string());
 
