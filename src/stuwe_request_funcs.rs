@@ -115,7 +115,7 @@ pub fn diff_canteen_meals(
                         equiv_old_mealgroups
                             .sub_meals
                             .iter()
-                            .all(|old_submeal| (old_submeal != *new_submeal))
+                            .all(|old_submeal| old_submeal != *new_submeal)
                     });
 
                 let new_or_changed_ignoring_allergens =
