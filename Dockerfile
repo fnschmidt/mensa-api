@@ -13,8 +13,8 @@ RUN cargo b -r
 
 FROM debian:bookworm-slim AS mensa-api
 RUN apt-get update && \
-  apt-get install -y \
-  libsqlite3-0 \
+  apt-get install -y --no-install-recommends \
+  libsqlite3-0 ca-certificates \
   && \
   apt-get autoremove -y && \
   apt-get clean -y && \
